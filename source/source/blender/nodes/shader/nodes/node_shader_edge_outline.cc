@@ -34,13 +34,13 @@ static void node_declare(NodeDeclarationBuilder &b)
       .min(0.0f)
       .max(32.0f)
       .subtype(PROP_PIXEL)
-      .description("Inner outline band half-width in pixels. Keep equal to the outline "
+      .description("Distance from detected contour in output pixels (0 disables it). Keep equal to the outline "
                    "post pass width (scene npr_outline_width) so the bands line up");
   b.add_input<decl::Float>("Threshold"_ustr)
       .default_value(0.05f)
       .min(0.0f)
       .max(10.0f)
-      .description("View-space depth delta (scene units) that counts as a silhouette. "
+      .description("One-pixel depth discontinuity after slope rejection (scene units). Independent of Width and camera distance. "
                    "0.05 works for meter-scale scenes");
   b.add_output<decl::Float>("Mask"_ustr)
       .description("Outline band factor 0..1 (within Width px of a silhouette). "

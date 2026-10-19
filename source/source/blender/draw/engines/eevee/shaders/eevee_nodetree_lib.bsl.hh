@@ -417,157 +417,100 @@ void raycast_eval([[maybe_unused]] float3 position,
 #endif
 }
 
-/* NPR EdgeOutline: screen-space inner outline band evaluated inside the material.
- *
- * Ring test over the scene depth copy (raycast_depth_tx, same storage layout as
- * render_buffers.depth_tx i.e. reverse-Z): 8 neighbours at radius = width_px.
- * Band fires where ANY ring sample deviates from the center view-z by more than
- * max(threshold, 0.02 * |center_z|) - i.e. within `width_px` of a silhouette
- * (own side, far side, inter-object). The two-tone color mix is computed
- * unconditionally so the Color output stays valid wherever Mask > 0.
- * Composited BEFORE the outline post pass, which extends the outer band by
- * sampling this color.
- */
-void edge_outline_eval([[maybe_unused]] float width_px,
-                       [[maybe_unused]] float threshold,
-                       float4 lit_color,
-                       float4 shadow_color,
-                       float lit_mask,
-                       float &out_mask,
-                       float4 &out_color)
+/* Shared one-pixel contour detector and Euclidean distance coverage for
+ * Edge Outline and Edge Rim. Width never participates in edge detection.
+ * Evaluate both band boundaries in one search; all distances are output pixels. */
+void npr_contour_coverage([[maybe_unused]] float start_px,
+                          [[maybe_unused]] float end_px,
+                          [[maybe_unused]] float threshold,
+                          float &inner_mask,
+                          float &outer_mask)
 {
-  out_mask = 0.0f;
-  /* mix() always: color socket works even where depth sampling is unavailable. */
-  out_color = mix(shadow_color, lit_color, saturate(lit_mask));
-
+  inner_mask = 0.0f;
+  outer_mask = 0.0f;
 #if defined(MAT_RAYCAST)
   {
     FRAGMENT_SHADER_CREATE_INFO(draw_view);
-
     [[resource_table]] const draw::View &views = resource_table_get(draw::View);
-    const auto &raycast_depth_tx = sampler_get(eevee_raycast, raycast_depth_tx);
-
+    [[resource_table]] const eevee::Uniform &uni = resource_table_get(eevee::Uniform);
+    const auto &depth_tx = sampler_get(eevee_raycast, raycast_depth_tx);
     const ViewMatrices view = views.get(0);
-
-    int2 texel = int2(gl_FragCoord.xy);
-    /* reverse_z::read equivalent: buffer stores reversed depth. */
-    float center_z = view.depth_screen_to_view(1.0f - texelFetch(raycast_depth_tx, texel, 0).r);
-
-    /* Sub-pixel radius: interpolate the ring test between floor and ceil so
-     * fractional Width values (1.4 vs 1.49) actually change the band. */
-    float rf = max(0.5f, width_px);
-    int r0 = max(1, int(floor(rf)));
-    float fr = clamp(rf - float(r0), 0.0f, 1.0f);
-    const int2 offsets[8] = {int2(1, 0),
-                             int2(-1, 0),
-                             int2(0, 1),
-                             int2(0, -1),
-                             int2(1, 1),
-                             int2(-1, -1),
-                             int2(1, -1),
-                             int2(-1, 1)};
-    const int2 size = textureSize(raycast_depth_tx, 0);
-
-    float max_delta0 = 0.0f;
-    float max_delta1 = 0.0f;
-    for (int i = 0; i < 8; i++) {
-      int2 t0 = clamp(texel + offsets[i] * r0, int2(0), size - int2(1));
-      int2 t1 = clamp(texel + offsets[i] * (r0 + 1), int2(0), size - int2(1));
-      float z0 = view.depth_screen_to_view(1.0f - texelFetch(raycast_depth_tx, t0, 0).r);
-      float z1 = view.depth_screen_to_view(1.0f - texelFetch(raycast_depth_tx, t1, 0).r);
-      max_delta0 = max(max_delta0, abs(z0 - center_z));
-      max_delta1 = max(max_delta1, abs(z1 - center_z));
+    const int2 size = textureSize(depth_tx, 0);
+    const int2 texel = int2(gl_FragCoord.xy);
+    float scale = float(max(1, uni.uniform_buf.film.scaling_factor));
+    float width = clamp(end_px, 0.0f, 65.0f) / scale;
+    if (width <= 0.0f) {
+      return;
     }
-    float max_delta = mix(max_delta0, max_delta1, fr);
-
-    float thresh = max(threshold, 0.02f * abs(center_z));
-    out_mask = clamp(smoothstep(thresh, thresh * 1.5f, max_delta), 0.0f, 1.0f);
+    float start_width = clamp(start_px, 0.0f, end_px) / scale;
+    float thresh = max(threshold, 1e-6f);
+    int radius = int(ceil(width));
+    /* Search edge segments only inside the requested coverage radius. Horizontal
+     * and vertical neighbour pairs form the contour independently of line width.
+     * A segment is half a pixel from each adjacent pixel centre. */
+    for (int y = -radius; y <= radius; y++) {
+      for (int x = -radius; x <= radius; x++) {
+        int2 a = texel + int2(x, y);
+        if (any(lessThan(a, int2(0))) || any(greaterThanEqual(a, size))) {
+          continue;
+        }
+        float2 delta = float2(x, y);
+        for (int axis = 0; axis < 2; axis++) {
+          int2 step = (axis == 0) ? int2(1, 0) : int2(0, 1);
+          float across = (axis == 0) ? delta.x : delta.y;
+          float along = (axis == 0) ? delta.y : delta.x;
+          float distance_px = length(float2(across + 0.5f, max(abs(along) - 0.5f, 0.0f)));
+          float coverage = clamp(width + 0.5f - distance_px, 0.0f, 1.0f);
+          float inner_coverage = clamp(start_width + 0.5f - distance_px, 0.0f, 1.0f);
+          if ((coverage <= outer_mask && inner_coverage <= inner_mask) || any(greaterThanEqual(a + step, size))) {
+            continue;
+          }
+          /* Fixed one-pixel edge detector. Remove the smaller neighbouring depth
+           * slope so tilted continuous surfaces do not become solid outline bands.
+           * At a real step at least one adjacent slope is small. No camera-distance
+           * term is used. Clamp auxiliary reads; the image border is not an edge. */
+          float za = view.depth_screen_to_view(1.0f - texelFetch(depth_tx, a, 0).r);
+          float zb = view.depth_screen_to_view(1.0f - texelFetch(depth_tx, a + step, 0).r);
+          float zl = view.depth_screen_to_view(1.0f - texelFetch(depth_tx, max(a - step, int2(0)), 0).r);
+          float zr = view.depth_screen_to_view(1.0f - texelFetch(depth_tx, min(a + step * 2, size - int2(1)), 0).r);
+          float jump = max(0.0f, abs(zb - za) - min(abs(za - zl), abs(zr - zb)));
+          float edge = smoothstep(thresh, thresh * 1.5f, jump);
+          outer_mask = max(outer_mask, coverage * edge);
+          inner_mask = max(inner_mask, inner_coverage * edge);
+        }
+      }
+    }
   }
 #endif
 }
 
-/* NPR EdgeRim: screen-space rim band, strictly INSIDE the outline band.
- *
- * Band construction (pixel-disjoint):
- *   r1 = outline_width + 1px  (constant gap: keeps the outline's own double-line
- *                              seam dark; rim must never fill it)
- *   r2 = r1 + rim_width
- *   rim band = NOT cross(r1) AND cross(r2)
- *            = pixels at distance [r1, r2) from the silhouette, sub-pixel boundaries.
- * The outline band is d < round(outline_width), so outlineMask * rimMask == 0
- * by construction - the two effects never claim the same pixel.
- * Color = mix(Shadow, Lit, Light Mask): same two-tone mask chain as the outline.
- */
-void edge_rim_eval([[maybe_unused]] float outline_width_px,
-                   [[maybe_unused]] float rim_width_px,
-                   [[maybe_unused]] float threshold,
-                   float4 lit_color,
-                   float4 shadow_color,
-                   float lit_mask,
-                   float &out_mask,
-                   float4 &out_color)
+void edge_outline_eval(float width_px, float threshold,
+                       float4 lit_color, float4 shadow_color, float lit_mask,
+                       float &out_mask, float4 &out_color)
 {
-  out_mask = 0.0f;
   out_color = mix(shadow_color, lit_color, saturate(lit_mask));
+  float unused_inner;
+  npr_contour_coverage(0.0f, clamp(width_px, 0.0f, 32.0f), threshold,
+                       unused_inner, out_mask);
+}
 
-#if defined(MAT_RAYCAST)
-  {
-    FRAGMENT_SHADER_CREATE_INFO(draw_view);
-
-    [[resource_table]] const draw::View &views = resource_table_get(draw::View);
-    const auto &raycast_depth_tx = sampler_get(eevee_raycast, raycast_depth_tx);
-
-    const ViewMatrices view = views.get(0);
-
-    int2 texel = int2(gl_FragCoord.xy);
-    /* reverse_z::read equivalent: buffer stores reversed depth. */
-    float center_z = view.depth_screen_to_view(1.0f - texelFetch(raycast_depth_tx, texel, 0).r);
-    const int2 size = textureSize(raycast_depth_tx, 0);
-
-    const int2 offsets[8] = {int2(1, 0),
-                             int2(-1, 0),
-                             int2(0, 1),
-                             int2(0, -1),
-                             int2(1, 1),
-                             int2(-1, -1),
-                             int2(1, -1),
-                             int2(-1, 1)};
-
-    /* Sub-pixel with a CONSTANT 1px gap: the outline itself renders as a
-     * double-line + dark seam under zoom (inner material band + post extender);
-     * the rim must never step into that seam (user-verified 0-gap overreach).
-     * r1 = outline width + 1 keeps the seam clean while floor/ceil blending
-     * keeps fractional Width values effective. */
-    float r1f = max(0.5f, outline_width_px) + 1.0f;
-    float r2f = r1f + max(0.5f, rim_width_px);
-    int r1a = max(1, int(floor(r1f)));
-    int r2a = max(1, int(floor(r2f)));
-    float fr1 = clamp(r1f - float(r1a), 0.0f, 1.0f);
-    float fr2 = clamp(r2f - float(r2a), 0.0f, 1.0f);
-
-    float md1a = 0.0f, md1b = 0.0f, md2a = 0.0f, md2b = 0.0f;
-    for (int i = 0; i < 8; i++) {
-      int2 o = offsets[i];
-      int2 t1a = clamp(texel + o * r1a, int2(0), size - int2(1));
-      int2 t1b = clamp(texel + o * (r1a + 1), int2(0), size - int2(1));
-      int2 t2a = clamp(texel + o * r2a, int2(0), size - int2(1));
-      int2 t2b = clamp(texel + o * (r2a + 1), int2(0), size - int2(1));
-      float z1a = view.depth_screen_to_view(1.0f - texelFetch(raycast_depth_tx, t1a, 0).r);
-      float z1b = view.depth_screen_to_view(1.0f - texelFetch(raycast_depth_tx, t1b, 0).r);
-      float z2a = view.depth_screen_to_view(1.0f - texelFetch(raycast_depth_tx, t2a, 0).r);
-      float z2b = view.depth_screen_to_view(1.0f - texelFetch(raycast_depth_tx, t2b, 0).r);
-      md1a = max(md1a, abs(z1a - center_z));
-      md1b = max(md1b, abs(z1b - center_z));
-      md2a = max(md2a, abs(z2a - center_z));
-      md2b = max(md2b, abs(z2b - center_z));
-    }
-
-    float thresh = max(threshold, 0.02f * abs(center_z));
-    float c1 = smoothstep(thresh, thresh * 1.5f, mix(md1a, md1b, fr1));
-    float c2 = smoothstep(thresh, thresh * 1.5f, mix(md2a, md2b, fr2));
-    out_mask = clamp(c2 * (1.0f - c1), 0.0f, 1.0f);
+/* Keep one OUTPUT pixel between outline and rim, including viewport scaling.
+ * Zero rim width is disabled. Subtract coverages rather than multiplying them:
+ * equal boundaries must produce zero even when a contour is only partly covered. */
+void edge_rim_eval(float outline_width_px, float rim_width_px, float threshold,
+                   float4 lit_color, float4 shadow_color, float lit_mask,
+                   float &out_mask, float4 &out_color)
+{
+  out_color = mix(shadow_color, lit_color, saturate(lit_mask));
+  out_mask = 0.0f;
+  float width = clamp(rim_width_px, 0.0f, 32.0f);
+  if (width <= 0.0f) {
+    return;
   }
-#endif
+  float start = clamp(outline_width_px, 0.0f, 32.0f) + 1.0f;
+  float inner_mask, outer_mask;
+  npr_contour_coverage(start, start + width, threshold, inner_mask, outer_mask);
+  out_mask = clamp(outer_mask - inner_mask, 0.0f, 1.0f);
 }
 
 #ifndef GPU_METAL

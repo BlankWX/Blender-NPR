@@ -38646,8 +38646,8 @@
   },
   {
     "path": "source/blender/draw/engines/eevee/shaders/eevee_nodetree_lib.bsl.hh",
-    "sha256": "4c6dbad547a126b501b90a0bf370ece14b0496a814a16ffc11bb4033e7c7e8b7",
-    "bytes": 35467
+    "sha256": "8ef81767f30ed847d0df54084727412b90097f431824e70445d4b237bc9a4e83",
+    "bytes": 33317
   },
   {
     "path": "source/blender/draw/engines/eevee/shaders/eevee_nodetree_type_lib.glsl",
@@ -61471,13 +61471,13 @@
   },
   {
     "path": "source/blender/nodes/shader/nodes/node_shader_edge_outline.cc",
-    "sha256": "444fb72031750f9c34b124460e8a4225a7c441a3e10bfd1f35e2a942cae4bd69",
-    "bytes": 3497
+    "sha256": "0906a5583dacc6987a0af654ebfcfba249f6ca3d5e00bad5d86570022a320044",
+    "bytes": 3564
   },
   {
     "path": "source/blender/nodes/shader/nodes/node_shader_edge_rim.cc",
-    "sha256": "3aad6d7b93b64959c94ca898e166f100b96715069c5bd0d4db21a4d1e33ee0fc",
-    "bytes": 3722
+    "sha256": "a9e33bb98afe4dd461cc778ef1566faa74a1c7b67bef8ede7d5e9accb43cf25f",
+    "bytes": 3749
   },
   {
     "path": "source/blender/nodes/shader/nodes/node_shader_eevee_specular.cc",

@@ -35,7 +35,7 @@ static void node_declare(NodeDeclarationBuilder &b)
       .min(0.0f)
       .max(32.0f)
       .subtype(PROP_PIXEL)
-      .description("Start of the rim band measured from the silhouette, in pixels. "
+      .description("Outline width in output pixels; the rim starts one pixel further inward. "
                    "Keep equal to the Edge Outline node Width so the bands tile "
                    "without overlap");
   b.add_input<decl::Float>("Rim Width"_ustr)
@@ -43,12 +43,12 @@ static void node_declare(NodeDeclarationBuilder &b)
       .min(0.0f)
       .max(32.0f)
       .subtype(PROP_PIXEL)
-      .description("Rim band width in pixels, measured inward from Outline Width");
+      .description("Rim band width in output pixels after the one-pixel gap; 0 disables the rim");
   b.add_input<decl::Float>("Threshold"_ustr)
       .default_value(0.05f)
       .min(0.0f)
       .max(10.0f)
-      .description("View-space depth delta (scene units) that counts as a silhouette. "
+      .description("One-pixel depth discontinuity after slope rejection (scene units). "
                    "Keep equal to the outline node Threshold");
   b.add_output<decl::Float>("Mask"_ustr)
       .description("Rim band factor 0..1 — the pixel interval [Outline Width + 1px, "
@@ -83,7 +83,7 @@ void register_node_type_sh_edge_rim()
   sh_node_type_base(&ntype, "ShaderNodeEdgeRim"_ustr, SH_NODE_EDGE_RIM);
   ntype.ui_name = "Edge Rim (NPR)";
   ntype.ui_description =
-      "Screen-space rim light band inside the silhouette, one band OUTWARD from the "
+      "Screen-space rim light band inside the silhouette, one pixel INWARD after the "
       "outline band (pixel-disjoint: they never fight for the same pixels). Colors "
       "follow the two-tone mask like the outline node. Only supported in EEVEE";
   ntype.enum_name_legacy = "EDGE_RIM";

@@ -1,34 +1,30 @@
 {
+  "project_version": "1.0.1",
   "smoke_test_passed": true,
+  "full_rebuild_performed": false,
   "archives": [
     {
-      "file": "blender-npr-v1.0.0-source.zip",
-      "bytes": 114298559,
-      "sha256": "a19a0e1e7b3d4bfe5812fe55826f098d31fd32b359236d52e656a0024aaa5b3d",
+      "file": "blender-npr-v1.0.1-source.zip",
+      "bytes": 114300134,
+      "sha256": "5fa85c04ffab13d4d2f1a653ec906356d604abcaf1a898aa5ee40a90c4e46fca",
       "zip_entries": 20225,
       "crc_test": "passed"
     },
     {
-      "file": "blender-npr-v1.0.0-windows-x64.zip",
-      "bytes": 283193488,
-      "sha256": "d4cfccf231870384113de29c60fcd9628bbe7e9408e98ee2bcfb8b1d7a344b49",
+      "file": "blender-npr-v1.0.1-windows-x64.zip",
+      "bytes": 283192985,
+      "sha256": "923b0485d089e9d5bb7970973ff4c96c971f904679dc9f7c1b91f327e2705fd0",
       "zip_entries": 6406,
       "crc_test": "passed"
     }
   ],
-  "source_files_over_100MiB": [],
-  "full_rebuild_performed": false,
-  "source_comment_cleanup": {
-    "files": [
-      "source/blender/gpu/shaders/material/gpu_shader_material_edge_rim.glsl",
-      "source/blender/draw/engines/eevee/eevee_npr_outline_shared.hh",
-      "source/blender/draw/engines/eevee/shaders/eevee_npr_outline.bsl.hh",
-      "source/blender/draw/engines/eevee/shaders/eevee_nodetree_lib.bsl.hh"
-    ],
-    "non_comment_source_unchanged": true
-  },
   "packaged_files_sha256_verified": {
     "SOURCE_MANIFEST.json": 20218,
     "RUNTIME_MANIFEST.json": 6406
-  }
+  },
+  "source_changes": [
+    "source/blender/draw/engines/eevee/shaders/eevee_nodetree_lib.bsl.hh",
+    "source/blender/nodes/shader/nodes/node_shader_edge_outline.cc",
+    "source/blender/nodes/shader/nodes/node_shader_edge_rim.cc"
+  ]
 }

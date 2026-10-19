@@ -1,2 +1,2 @@
-a19a0e1e7b3d4bfe5812fe55826f098d31fd32b359236d52e656a0024aaa5b3d  release-assets/blender-npr-v1.0.0-source.zip
-d4cfccf231870384113de29c60fcd9628bbe7e9408e98ee2bcfb8b1d7a344b49  release-assets/blender-npr-v1.0.0-windows-x64.zip
+5fa85c04ffab13d4d2f1a653ec906356d604abcaf1a898aa5ee40a90c4e46fca  blender-npr-v1.0.1-source.zip
+923b0485d089e9d5bb7970973ff4c96c971f904679dc9f7c1b91f327e2705fd0  blender-npr-v1.0.1-windows-x64.zip

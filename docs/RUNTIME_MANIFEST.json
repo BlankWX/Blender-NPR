@@ -6,8 +6,8 @@
   },
   {
     "path": "blender.exe",
-    "sha256": "641aa656f309a14d941c15ea6ce6d82bd74973b7f895daf59295bcd88904d0ef",
-    "bytes": 98000896
+    "sha256": "f6cff503b266564ad35596d3b439f241c3e0a4674a5abd8a1fa58b141b3e82d5",
+    "bytes": 98000384
   },
   {
     "path": "blender_cpu_check.dll",
@@ -66,7 +66,7 @@
   },
   {
     "path": "BlendThumb.dll",
-    "sha256": "69460993579549d344a446af61ca50af73306082aa7d7e9b4bf8398573bd5b68",
+    "sha256": "7b10260e87da8245f98fd765b29fdc6fcbc2000837c7dea45a420fff3db752db",
     "bytes": 458240
   },
   {
