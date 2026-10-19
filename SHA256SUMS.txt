@@ -1,0 +1,2 @@
+a19a0e1e7b3d4bfe5812fe55826f098d31fd32b359236d52e656a0024aaa5b3d  release-assets/blender-npr-v1.0.0-source.zip
+d4cfccf231870384113de29c60fcd9628bbe7e9408e98ee2bcfb8b1d7a344b49  release-assets/blender-npr-v1.0.0-windows-x64.zip

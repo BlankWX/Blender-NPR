@@ -1,0 +1,15 @@
+{
+  "version": "5.2.2 LTS",
+  "binary": "blender.exe",
+  "nodes": {
+    "ShaderNodeHalfLambert": true,
+    "ShaderNodeEdgeOutline": true,
+    "ShaderNodeEdgeRim": true,
+    "ShaderNodeSDFDriver": true,
+    "ShaderNodeNPRShadowCaster": true,
+    "ShaderNodeNPRCharacterShadow": true,
+    "ShaderNodeEyeSeeThrough": true,
+    "ShaderNodeEyeSeeThroughSource": true
+  },
+  "all_passed": true
+}

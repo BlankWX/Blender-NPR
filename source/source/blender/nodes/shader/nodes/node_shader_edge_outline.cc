@@ -1,0 +1,92 @@
+/* SPDX-FileCopyrightText: 2026 Blender Authors
+ *
+ * SPDX-License-Identifier: GPL-2.0-or-later */
+
+#include "node_shader_util.hh"
+
+namespace blender {
+
+namespace nodes::node_shader_edge_outline_cc {
+
+/* Input socket indices (order of declaration in node_declare). */
+enum eInSocket : int {
+  SOCK_IN_LIT_COLOR = 0,
+  SOCK_IN_SHADOW_COLOR = 1,
+  SOCK_IN_LIGHT_MASK = 2,
+  SOCK_IN_WIDTH = 3,
+  SOCK_IN_THRESHOLD = 4,
+};
+
+static void node_declare(NodeDeclarationBuilder &b)
+{
+  b.add_input<decl::Color>("Lit Color"_ustr).default_value({0.0f, 0.0f, 0.0f, 1.0f});
+  b.add_input<decl::Color>("Shadow Color"_ustr).default_value({0.0f, 0.0f, 0.0f, 1.0f});
+  b.add_input<decl::Float>("Light Mask"_ustr)
+      .default_value(1.0f)
+      .min(0.0f)
+      .max(1.0f)
+      .subtype(PROP_FACTOR)
+      .description("Tone factor selecting the outline color: wire the Half-Lambert Mask "
+                   "here so lit and shadow regions outline differently. 0 = Shadow Color, "
+                   "1 = Lit Color");
+  b.add_input<decl::Float>("Width"_ustr)
+      .default_value(1.5f)
+      .min(0.0f)
+      .max(32.0f)
+      .subtype(PROP_PIXEL)
+      .description("Inner outline band half-width in pixels. Keep equal to the outline "
+                   "post pass width (scene npr_outline_width) so the bands line up");
+  b.add_input<decl::Float>("Threshold"_ustr)
+      .default_value(0.05f)
+      .min(0.0f)
+      .max(10.0f)
+      .description("View-space depth delta (scene units) that counts as a silhouette. "
+                   "0.05 works for meter-scale scenes");
+  b.add_output<decl::Float>("Mask"_ustr)
+      .description("Outline band factor 0..1 (within Width px of a silhouette). "
+                   "Use as Mix factor over the base color");
+  b.add_output<decl::Color>("Color"_ustr)
+      .description("Outline color = mix(Shadow Color, Lit Color, Light Mask). "
+                   "Combine with Mask via a Mix node");
+}
+
+static int node_shader_gpu_edge_outline(GPUMaterial *mat,
+                                        bNode *node,
+                                        bNodeExecData * /*execdata*/,
+                                        GPUNodeStack *in,
+                                        GPUNodeStack *out)
+{
+  /* Arms the raycast depth-copy chain: scene depth becomes sampleable inside
+   * this material (same mechanism as the stock Raycast node). */
+  GPU_material_flag_set(mat, GPU_MATFLAG_RAYCAST);
+
+  return GPU_stack_link(mat, node, "node_edge_outline", in, out);
+}
+
+}  // namespace nodes::node_shader_edge_outline_cc
+
+/* node type definition */
+void register_node_type_sh_edge_outline()
+{
+  namespace file_ns = nodes::node_shader_edge_outline_cc;
+
+  static bke::bNodeType ntype;
+
+  sh_node_type_base(&ntype, "ShaderNodeEdgeOutline"_ustr, SH_NODE_EDGE_OUTLINE);
+  ntype.ui_name = "Edge Outline (NPR)";
+  ntype.ui_description =
+      "Screen-space outline band inside the silhouette, colored by the two-tone split. "
+      "Light Mask takes the Half-Lambert Mask so lit/shadow regions outline differently. "
+      "Pair with the outline post pass (scene npr_outline_enable) to extend the line "
+      "outward. Only supported in EEVEE";
+  ntype.enum_name_legacy = "EDGE_OUTLINE";
+  ntype.nclass = NODE_CLASS_INPUT;
+  ntype.declare = file_ns::node_declare;
+  ntype.add_ui_poll = object_eevee_shader_nodes_poll;
+  ntype.default_width = bke::NodeWidth::_180;
+  ntype.gpu_fn = file_ns::node_shader_gpu_edge_outline;
+
+  bke::node_register_type(ntype);
+}
+
+}  // namespace blender

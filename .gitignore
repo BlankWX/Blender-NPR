@@ -1,0 +1,7 @@
+/windows-portable/
+/release-assets/
+/build/
+/windows-libs/
+/install/
+*.pdb
+__pycache__/
